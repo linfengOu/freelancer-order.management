@@ -36,12 +36,12 @@ CREATE TABLE `orderdesc` (
 DROP TABLE IF EXISTS `orderstatus`;
 CREATE TABLE `orderstatus` (
   `oid` int(10) unsigned NOT NULL,
-  `promulgator` int(10) unsigned NOT NULL,
-  `applicant` int(10) unsigned NOT NULL,
+  `aparty` int(10) unsigned NOT NULL,
+  `bparty` int(10) unsigned NOT NULL,
   `status` tinyint(1) NOT NULL,
   `isread` tinyint(1) NOT NULL,
   PRIMARY KEY (`oid`),
-  KEY `select` (`promulgator`,`applicant`)
+  KEY `select` (`aparty`,`bparty`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --

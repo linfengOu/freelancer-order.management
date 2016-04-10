@@ -1,15 +1,14 @@
 package com.freelancer.om.util;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -17,10 +16,14 @@ import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.Vector;
 
+/**
+ * @author Oliver
+ *
+ */
 public class DBConnectionManager {
-	
-	private static class SingletonHolder {  
-        private static final DBConnectionManager INSTANCE = new DBConnectionManager();  
+
+    private static class SingletonHolder {
+        private static final DBConnectionManager INSTANCE = new DBConnectionManager();
     }
     private static int clients;
     private Vector < Driver > drivers = new Vector < > ();
@@ -33,6 +36,7 @@ public class DBConnectionManager {
      */
     private DBConnectionManager() {
         this.init();
+        log("Database Connection Manager in position.");
     }
 
     /** 
@@ -53,9 +57,15 @@ public class DBConnectionManager {
      * @return Connection (available connection or null)
      */
     public Connection getConnection(String name) {
+    	Connection con = null;
         DBConnectionPool dbPool = pools.get(name);
         if (dbPool != null) {
-            return dbPool.getConnection();
+            con = dbPool.getConnection();
+            if (con == null) {
+            	return dbPool.getConnection(1000);
+            } else {
+            	return con;
+            }
         }
         return null;
     }
@@ -112,34 +122,30 @@ public class DBConnectionManager {
                 log(e, "Cannot deregister JDBC driver: " + driver.getClass().getName());
             }
         }
+        log("Database Connection Manager released all resources.");
     }
 
     /** 
      * read properties and initial
      */
     private void init() {
-
-        InputStream fileinputstream = null;
-        try {
-            fileinputstream = new FileInputStream("./config/db.properties");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        try {
-            dbProps = new Properties();
-            dbProps.load(fileinputstream);
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("Cannot read properties file. " + "make sure db.properties is in the right path");
-            return;
-        }
-
-        String logFile = dbProps.getProperty("logfile", "DBConnectionManager.log");
+    	ConfigManagement cm = ConfigManagement.getInstance();
+    	dbProps = cm.getProps();
+    	
+        String logFile = dbProps.getProperty("logfile", "DBConnectionManager.log") + "db.log";
         try {
             log = new PrintWriter(new FileWriter(logFile, true), true);
         } catch (IOException e) {
-            System.err.println("Cannot open log file: " + logFile);
-            log = new PrintWriter(System.err);
+            System.out.println("Cannot open log file: " + logFile);
+            System.out.println("Assuming not log file exsit. Begin to create log file.");
+            File lf = new File(logFile);
+            try {
+				lf.createNewFile();
+	            log = new PrintWriter(new FileWriter(logFile, true), true);
+			} catch (IOException e1) {
+				System.err.println("Cannot create file.");
+	            log = new PrintWriter(System.err);
+			}
         }
 
         loadDrivers(dbProps);
@@ -161,7 +167,7 @@ public class DBConnectionManager {
                 Driver driver = (Driver) Class.forName(driverClassName).newInstance();
                 DriverManager.registerDriver(driver);
                 drivers.addElement(driver);
-                log("Register JDBC successfully" + driverClassName);
+                log("Register JDBC successfully " + driverClassName);
             } catch (Exception e) {
                 log("Cannot register JDBC: " + driverClassName + ", error: " + e);
             }
@@ -174,17 +180,21 @@ public class DBConnectionManager {
      * @param props 
      */
     private void createPools(Properties props) {
-        Enumeration <?> propNames = props.propertyNames();
+        Enumeration <? > propNames = props.propertyNames();
         while (propNames.hasMoreElements()) {
             String name = (String) propNames.nextElement();
             if (name.endsWith(".url")) {
                 String poolName = name.substring(0, name.lastIndexOf("."));
-                System.out.println(" poolName ||" + poolName + "|");
-                String url = props.getProperty(poolName + ".url");
-                if (url == null) {
+                StringBuffer sb_url = new StringBuffer();
+                String basicUrl = props.getProperty(poolName + ".url");
+                if (basicUrl == null) {
                     log("Not found assigned URL for connection pool " + poolName);
                     continue;
                 }
+                String schema = props.getProperty(poolName + ".schema");
+                String dbParams = "?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&useSSL=false";
+                sb_url.append(basicUrl).append("/").append(schema).append(dbParams);
+                String url = sb_url.toString();
                 String user = props.getProperty(poolName + ".user");
                 String password = props.getProperty(poolName + ".password");
                 String maxconn = props.getProperty(poolName + ".maxconn", "0");
@@ -195,7 +205,7 @@ public class DBConnectionManager {
                     log("Wrong max connection limit: " + maxconn + " . Connection pool: " + poolName);
                     max = 0;
                 }
-                DBConnectionPool pool = new DBConnectionPool(poolName, url, user, password, max);
+                DBConnectionPool pool = new DBConnectionPool(poolName, url, user, password, max, basicUrl, schema, dbParams);
                 pools.put(poolName, pool);
                 log("Create connection pool successfully: " + poolName);
             }
@@ -218,7 +228,7 @@ public class DBConnectionManager {
     }
 
     /*********************** internal class: connection pool *****************************/
-    
+
     /** 
      *  
      * @function internal connection pool. Able to create new connection on demand, until reach to max limit.
@@ -234,6 +244,9 @@ public class DBConnectionManager {
         private int maxConn;
         private int checkedOut; // current connection number
         private Vector < Connection > freeConnections; // all free connections
+        private String basicUrl;
+        private String schema;
+        private String dbParams;
 
         /** 
          * Construction of new connection pool
@@ -244,12 +257,16 @@ public class DBConnectionManager {
          * @param dbPassWord 
          * @param maxConn 
          */
-        public DBConnectionPool(String poolName, String dbConnUrl, String dbUserName, String dbPassWord, int maxConn) {
+        public DBConnectionPool(String poolName, String dbConnUrl, String dbUserName, String dbPassWord, int maxConn, String basicUrl, String schema, String dbParams) {
             this.poolName = poolName;
             this.dbConnUrl = dbConnUrl;
             this.dbUserName = dbUserName;
             this.dbPassWord = dbPassWord;
             this.maxConn = maxConn;
+            this.basicUrl = basicUrl;
+            this.schema = schema;
+            this.dbParams = dbParams;
+
             this.freeConnections = new Vector < Connection > ();
         }
 
@@ -258,7 +275,8 @@ public class DBConnectionManager {
          * then create new connection.
          * if the free connection no longer valid, delete it then recur itself to get a new connection.
          */
-        @SuppressWarnings("resource")
+        @
+        SuppressWarnings("resource")
         public synchronized Connection getConnection() {
             Connection conn = null; // define connection scalar
             if (freeConnections != null && freeConnections.size() > 0) {
@@ -267,12 +285,10 @@ public class DBConnectionManager {
                 freeConnections.removeElementAt(0);
                 try {
                     if (conn.isClosed()) {
-                        log("Delete a invalid connection from connection pool: " + poolName);
                         // recur itself
                         conn = getConnection();
                     }
                 } catch (SQLException e) {
-                    log("Delete a invalid connection from connection pool: " + poolName);
                     // recur itself
                     conn = getConnection();
                 }
@@ -293,7 +309,7 @@ public class DBConnectionManager {
          */
         public synchronized Connection getConnection(long timeout) {
             long startTime = System.currentTimeMillis();
-            Connection conn = null; 
+            Connection conn = null;
             while ((conn = getConnection()) == null) {
                 try {
                     wait(timeout);
@@ -301,6 +317,7 @@ public class DBConnectionManager {
                     e.printStackTrace();
                 }
                 if ((System.currentTimeMillis() - startTime) >= timeout) {
+                	log("[ NO CONNECTION ! ] No available connection after waiting " + timeout);
                     return null;
                 }
             }
@@ -320,10 +337,15 @@ public class DBConnectionManager {
                 } else {
                     conn = DriverManager.getConnection(dbConnUrl, dbUserName, dbPassWord);
                 }
-                log("Connection pool " + poolName + " create a new connection");
+                log("Connection pool " + poolName + " create a new connection: " + conn.toString());
             } catch (SQLException e) {
-                log(e, "Cannot create connection with URL: " + dbConnUrl);
-                return null;
+                log("Cannot create connection with URL: " + dbConnUrl);
+                log("Assuming no schema exsit, try to initialize schema");
+                if (schema != null && initial()) {
+                    conn = newConnection();
+                } else {
+                    return null;
+                }
             }
             return conn;
         }
@@ -348,12 +370,92 @@ public class DBConnectionManager {
                 Connection con = (Connection) allConnections.nextElement();
                 try {
                     con.close();
-                    log("Close one connection in pool: " + poolName);
                 } catch (SQLException e) {
                     log(e, "Cannot close a connection in pool: " + poolName);
                 }
             }
             freeConnections.removeAllElements();
+        }
+
+        /**
+         * initial schema
+         */
+        public synchronized boolean initial() {
+        	String _schema = schema;
+            schema = null;
+            boolean flag = false;
+            Connection con = null;
+            Statement stmt = null;
+            try {
+                if (dbUserName == null) {
+                    con = DriverManager.getConnection(basicUrl + dbParams);
+                } else {
+                    con = DriverManager.getConnection(basicUrl + dbParams, dbUserName, dbPassWord);
+                }
+            } catch (SQLException e) {
+                log(e, "Cannot create connection with URL: " + basicUrl + dbParams);
+                return flag;
+            }
+            
+            String[] sql = {"CREATE DATABASE IF NOT EXISTS `" + _schema + "` DEFAULT CHARACTER SET utf8",
+                "CREATE TABLE `" + _schema + "`.`order` (" +
+                "  `oid` int(10) unsigned NOT NULL AUTO_INCREMENT," +
+                "  `title` char(40) NOT NULL," +
+                "  `price` float(8,1) NOT NULL," +
+                "  `adiv` tinyint(1) NOT NULL," +
+                "  `bdiv` tinyint(1) NOT NULL," +
+                "  `createdate` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "  `deadline` datetime NOT NULL," +
+                "  `place` char(40) DEFAULT NULL," +
+                "  `deposit` float(6,1) DEFAULT NULL," +
+                "  PRIMARY KEY (`oid`)," +
+                "  INDEX `create_date` (`createdate` ASC)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8",
+                "CREATE TABLE `" + _schema + "`.`orderdesc` (" +
+                "  `oid` int(10) unsigned NOT NULL," +
+                "  `desc` varchar(255) DEFAULT NULL," +
+                "  PRIMARY KEY (`oid`)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8",
+                "CREATE TABLE `" + _schema + "`.`orderstatus` (" +
+                "  `oid` int(10) unsigned NOT NULL," +
+                "  `aparty` char(16) NOT NULL," +
+                "  `bparty` char(16)," +
+                "  `status` tinyint(1) NOT NULL," +
+                "  `enddate` datetime," +
+                "  `isread` tinyint(1) NOT NULL," +
+                "  PRIMARY KEY (`oid`)," +
+                "  INDEX `person` (`aparty` ASC, `bparty` ASC, `enddate` ASC)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8",
+                "CREATE TABLE `" + _schema + "`.`user` (" +
+                "  `uid` int(10) unsigned NOT NULL AUTO_INCREMENT," +
+                "  `name` char(16) NOT NULL," +
+                "  `pw` char(40) NOT NULL," +
+                "  `usertype` tinyint(1) NOT NULL," +
+                "  `joindate` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                "  PRIMARY KEY (`uid`)," +
+                "  INDEX `user_name` (`name` ASC)" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8"};
+            try {
+                stmt = con.createStatement();
+                for (int i = 0; i < sql.length; i++) {
+                	stmt.addBatch(sql[i]);
+                }
+                stmt.executeBatch();
+                log("Schema " + _schema + " initialized successfully.");
+                flag = true;
+            } catch (SQLException e) {
+                log(e, "Connot initial the schema " + _schema);
+            } finally {
+                try {
+                    if (stmt != null) {
+                        stmt.close();
+                    }
+                    if (con != null) {
+                        con.close();
+                    }
+                } catch (SQLException e) {}
+            }
+            return flag;
         }
     }
 }
