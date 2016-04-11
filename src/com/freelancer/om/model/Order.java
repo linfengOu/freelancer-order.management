@@ -142,16 +142,16 @@ public class Order {
 		this.bDiv = bDiv;
 	}
 
-	public void setCreateDate(Date createDate) {
-		this.createDate = createDate;
+	public void setCreateDate(long timestamp) {
+		this.createDate = new Date(timestamp);
 	}
 
-	public void setEndDate(Date endDate) {
-		this.endDate = endDate;
+	public void setEndDate(long timestamp) {
+		this.endDate = new Date(timestamp);
 	}
 
-	public void setDeadline(Date deadline) {
-		this.deadline = deadline;
+	public void setDeadline(long timestamp) {
+		this.deadline = new Date(timestamp);
 	}
 
 	public void setPlace(String place) {

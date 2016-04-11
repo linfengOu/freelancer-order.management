@@ -32,11 +32,13 @@ public interface IOrderDao {
 	
 	/**
 	 * update order entry by given order and the parameters that to be updated
+	 * <br/>Param should format as:
+	 * <br/>  - Map < filed, value >
 	 * @param oid
-	 * @param param
+	 * @param params
 	 * @throws ExceptionMessage
 	 */
-	public void update(int oid, Map<String, Object> param) throws ExceptionMessage;
+	public void update(int oid, Map<String, Object> params) throws ExceptionMessage;
 	
 	/**
 	 * get single detailed order information
@@ -49,13 +51,14 @@ public interface IOrderDao {
 	/**
 	 * Get orders with given queries.
 	 * <br/>Query should format as:
-	 * <br/>  - condition: [ "COND", "field", "eq/ne/is/not/lt/gt/lte/gte/li/nl", value ]
-	 * <br/>  - condition: [ "COND", "field", "or", condition_list ]
+	 * <br/>  - condition: [ "COND", "eq/ne/is/not/lt/gt/lte/gte/li/nl", "field", value ]
+	 * <br/>  - condition: [ "COND", "or", condition_list ]
 	 * <br/>  - sort:      [ "SORT", "field", "asc/desc"]
 	 * @param queries
 	 * @param skip
 	 * @param size
 	 * @return
+	 * @throws ExceptionMessage 
 	 */
-	public List<Order> getOrdersWithQueries(List<List<Object>> queries, int offset, int size);
+	public List<Order> getOrdersWithQueries(List<List<Object>> queries, int offset, int size) throws ExceptionMessage;
 }

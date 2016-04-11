@@ -41,10 +41,13 @@ public class Test extends HttpServlet {
 		ObjectMapper mapper = new ObjectMapper();
 		
 		try {
-			out.append("Order ID " + ts.insertRandom());
-		} catch (ExceptionMessage e) {
-			out.append(e.getMessage()).close();
-		}
+      out.append(mapper.writeValueAsString(ts.checkCondition()));
+      out.append(mapper.writeValueAsString(ts.findOrder(1)));
+//		  out.append("id "+ ts.insertRandom());
+    } catch (ExceptionMessage e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
 		
 		out.close();
 	}

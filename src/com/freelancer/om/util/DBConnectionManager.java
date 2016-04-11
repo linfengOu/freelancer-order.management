@@ -428,12 +428,12 @@ public class DBConnectionManager {
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8",
                 "CREATE TABLE `" + _schema + "`.`user` (" +
                 "  `uid` int(10) unsigned NOT NULL AUTO_INCREMENT," +
-                "  `name` char(16) NOT NULL," +
+                "  `username` char(16) NOT NULL UNIQUE," +
+                "  `name` char(16) NOT NULL UNIQUE," +
                 "  `pw` char(40) NOT NULL," +
                 "  `usertype` tinyint(1) NOT NULL," +
                 "  `joindate` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP," +
-                "  PRIMARY KEY (`uid`)," +
-                "  INDEX `user_name` (`name` ASC)" +
+                "  PRIMARY KEY (`uid`)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8"};
             try {
                 stmt = con.createStatement();
