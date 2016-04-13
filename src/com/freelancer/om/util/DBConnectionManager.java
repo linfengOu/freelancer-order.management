@@ -430,7 +430,7 @@ public class DBConnectionManager {
                 "  `uid` int(10) unsigned NOT NULL AUTO_INCREMENT," +
                 "  `username` char(16) NOT NULL UNIQUE," +
                 "  `name` char(16) NOT NULL UNIQUE," +
-                "  `pw` char(40) NOT NULL," +
+                "  `pw` char(102) NOT NULL," +
                 "  `usertype` tinyint(1) NOT NULL," +
                 "  `joindate` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "  PRIMARY KEY (`uid`)" +

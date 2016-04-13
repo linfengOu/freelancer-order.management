@@ -58,7 +58,7 @@ public class Order {
 		props = ConfigManagement.getInstance().getProps();
 	}
 	
-	public int getOid() {
+  public int getOid() {
 		return oid;
 	}
 

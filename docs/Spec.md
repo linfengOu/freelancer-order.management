@@ -29,7 +29,7 @@
 * 查询月／年完成量和收入
 
 ## Database design
-* 用户表 user：<u>uid</u>, username(char(16)), name(char(16)), pw(char(40)), utype(tinyint(1)), joindate(datetime)
+* 用户表 user：<u>uid</u>, username(char(16)), name(char(16)), pw(char(102)), utype(tinyint(1)), joindate(datetime)
 * 订单表 order：<u>oid</u>, title(char(40)), price(float(8,1)), adiv(tinyint(1)), bdiv(tinyint(1)),createdata(datetime),  deadline(datetime), place(char(40)), deposit(float(6,1))
 * 订单描述表 orderdesc: <u>oid</u>, desc(varchar(255))
 * 订单状态表 orderstatus: <u>oid</u>, <u>aparty</u>, <u>bparty</u>, status(tinyint(1)), isread(tinyint(1)), endDate

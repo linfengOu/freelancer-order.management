@@ -67,8 +67,8 @@ public class User {
     this.userType = userType;
   }
 
-  public void setJoinDate(Date joinDate) {
-    this.joinDate = joinDate;
+  public void setJoinDate(long timestamp) {
+    this.joinDate = new Date(timestamp);
   }
   
 }
